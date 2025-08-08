@@ -21,12 +21,6 @@ function initDB() {
         request.onupgradeneeded = function(event) {
             const db = event.target.result;
             
-            // Create inventory items store
-            if (!db.objectStoreNames.contains('inventory')) {
-                const inventoryStore = db.createObjectStore('inventory', { keyPath: 'id', autoIncrement: true });
-                inventoryStore.createIndex('name', 'name', { unique: true });
-            }
-            
             // Create transactions store
             if (!db.objectStoreNames.contains('transactions')) {
                 const transactionsStore = db.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
@@ -43,95 +37,8 @@ function initDB() {
     });
 }
 
-// Inventory operations
-function getAllInventoryItems() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['inventory'], 'readonly');
-        const store = transaction.objectStore('inventory');
-        const request = store.getAll();
-        
-        request.onerror = function(event) {
-            reject(event.target.error);
-        };
-        
-        request.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-    });
-}
-
-function getInventoryItem(itemId) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['inventory'], 'readonly');
-        const store = transaction.objectStore('inventory');
-        const request = store.get(itemId);
-        
-        request.onerror = function(event) {
-            reject(event.target.error);
-        };
-        
-        request.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-    });
-}
-
-function updateInventoryItem(itemId, newStock) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['inventory'], 'readwrite');
-        const store = transaction.objectStore('inventory');
-        
-        const getRequest = store.get(itemId);
-        
-        getRequest.onerror = function(event) {
-            reject(event.target.error);
-        };
-        
-        getRequest.onsuccess = function(event) {
-            const item = event.target.result;
-            if (item) {
-                item.currentStock = newStock;
-                const putRequest = store.put(item);
-                
-                putRequest.onerror = function(event) {
-                    reject(event.target.error);
-                };
-                
-                putRequest.onsuccess = function() {
-                    resolve();
-                };
-            } else {
-                reject(new Error('Item not found'));
-            }
-        };
-    });
-}
-
-function addNewInventoryItem(name, initialStock, unit) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['inventory'], 'readwrite');
-        const store = transaction.objectStore('inventory');
-        
-        const item = {
-            name: name,
-            currentStock: initialStock,
-            unit: unit
-        };
-        
-        const request = store.add(item);
-        
-        request.onerror = function(event) {
-            reject(event.target.error);
-        };
-        
-        request.onsuccess = function() {
-            resolve();
-        };
-    });
-}
-
 // Transaction operations
-function addTransaction(jobId, personName, itemId, itemName, quantity, action, task, date) {
+function addTransaction(jobId, personName, itemName, quantity, action, task, date) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(['transactions'], 'readwrite');
         const store = transaction.objectStore('transactions');
@@ -139,7 +46,6 @@ function addTransaction(jobId, personName, itemId, itemName, quantity, action, t
         const newTransaction = {
             jobId: jobId,
             personName: personName,
-            itemId: itemId,
             itemName: itemName,
             quantity: quantity,
             action: action,
@@ -182,6 +88,22 @@ function getRecentActivity(limit = 10) {
             } else {
                 resolve(results);
             }
+        };
+    });
+}
+
+function getRecentActivityCount() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['transactions'], 'readonly');
+        const store = transaction.objectStore('transactions');
+        const request = store.count();
+        
+        request.onerror = function(event) {
+            reject(event.target.error);
+        };
+        
+        request.onsuccess = function(event) {
+            resolve(event.target.result);
         };
     });
 }
@@ -306,22 +228,6 @@ function removeActiveJob(jobId) {
 }
 
 // Dashboard statistics
-function getTotalInventoryItems() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['inventory'], 'readonly');
-        const store = transaction.objectStore('inventory');
-        const request = store.count();
-        
-        request.onerror = function(event) {
-            reject(event.target.error);
-        };
-        
-        request.onsuccess = function(event) {
-            resolve(event.target.result);
-        };
-    });
-}
-
 function getTotalCheckedOutItems() {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(['activeJobs'], 'readonly');
@@ -366,63 +272,28 @@ function getActiveJobsCount() {
 // High-level operations
 function issueItems(jobId, personName, items, task, date) {
     return new Promise((resolve, reject) => {
-        // First, check if all items have sufficient stock
-        const checkPromises = items.map(item => {
-            return getInventoryItem(item.itemId)
-                .then(dbItem => {
-                    if (dbItem.currentStock < item.quantity) {
-                        throw new Error(`Insufficient stock for ${dbItem.name}. Available: ${dbItem.currentStock}, Requested: ${item.quantity}`);
-                    }
-                    return {
-                        itemId: item.itemId,
-                        currentStock: dbItem.currentStock,
-                        requestedQty: item.quantity
-                    };
-                });
+        const dateObj = date ? new Date(date) : new Date();
+        
+        // Add transaction records
+        const transactionPromises = items.map(item => {
+            return addTransaction(
+                jobId,
+                personName,
+                item.itemName,
+                item.quantity,
+                'issue',
+                task,
+                dateObj
+            );
         });
         
-        Promise.all(checkPromises)
-            .then(results => {
-                // All checks passed, proceed with transaction
-                const transactionPromises = results.map(result => {
-                    const newStock = result.currentStock - result.requestedQty;
-                    return updateInventoryItem(result.itemId, newStock);
-                });
-                
-                // Add transaction records
-                const dateObj = date ? new Date(date) : new Date();
-                const transactionPromises2 = items.map(item => {
-                    return addTransaction(
-                        jobId,
-                        personName,
-                        item.itemId,
-                        item.itemName,
-                        item.quantity,
-                        'issue',
-                        task,
-                        dateObj
-                    );
-                });
-                
-                // Prepare items for active job
-                const activeJobItems = items.map(item => {
-                    return {
-                        id: item.itemId,
-                        name: item.itemName,
-                        quantity: item.quantity,
-                        unit: '' // Would need to get this from inventory
-                    };
-                });
-                
-                // Add active job
-                return Promise.all([
-                    ...transactionPromises,
-                    ...transactionPromises2,
-                    addActiveJob(jobId, personName, activeJobItems, task, dateObj)
-                ]);
-            })
-            .then(() => resolve())
-            .catch(error => reject(error));
+        // Add active job
+        Promise.all([
+            ...transactionPromises,
+            addActiveJob(jobId, personName, items, task, dateObj)
+        ])
+        .then(() => resolve())
+        .catch(error => reject(error));
     });
 }
 
@@ -435,58 +306,32 @@ function returnItemsToInventory(jobId, returnItems) {
                     throw new Error('Job not found');
                 }
                 
-                // Validate return quantities
-                const validationPromises = returnItems.map(returnItem => {
-                    const jobItem = job.items.find(item => item.id === returnItem.itemId);
-                    if (!jobItem) {
-                        throw new Error(`Item ${returnItem.itemId} not found in job ${jobId}`);
-                    }
-                    
-                    if (returnItem.returnedQty > returnItem.originalQty) {
-                        throw new Error(`Cannot return more than was issued for item ${jobItem.name}`);
-                    }
-                    
-                    return getInventoryItem(returnItem.itemId);
+                // Add transaction records
+                const transactionPromises = returnItems.map(returnItem => {
+                    return addTransaction(
+                        jobId,
+                        job.personName,
+                        returnItem.itemName,
+                        returnItem.returnedQty,
+                        'return',
+                        job.task,
+                        new Date()
+                    );
                 });
                 
-                return Promise.all(validationPromises)
-                    .then(inventoryItems => {
-                        // Update inventory
-                        const updatePromises = returnItems.map((returnItem, index) => {
-                            const newStock = inventoryItems[index].currentStock + returnItem.returnedQty;
-                            return updateInventoryItem(returnItem.itemId, newStock);
-                        });
-                        
-                        // Add transaction records
-                        const transactionPromises = returnItems.map(returnItem => {
-                            const jobItem = job.items.find(item => item.id === returnItem.itemId);
-                            return addTransaction(
-                                jobId,
-                                job.personName,
-                                returnItem.itemId,
-                                jobItem.name,
-                                returnItem.returnedQty,
-                                'return',
-                                job.task,
-                                new Date()
-                            );
-                        });
-                        
-                        // If all items are returned, remove the active job
-                        const allReturned = returnItems.every(returnItem => 
-                            returnItem.returnedQty === returnItem.originalQty
-                        );
-                        
-                        const removePromise = allReturned ? 
-                            removeActiveJob(jobId) : 
-                            Promise.resolve();
-                        
-                        return Promise.all([
-                            ...updatePromises,
-                            ...transactionPromises,
-                            removePromise
-                        ]);
-                    });
+                // If all items are returned, remove the active job
+                const allReturned = returnItems.every(returnItem => 
+                    returnItem.returnedQty === returnItem.originalQty
+                );
+                
+                const removePromise = allReturned ? 
+                    removeActiveJob(jobId) : 
+                    Promise.resolve();
+                
+                return Promise.all([
+                    ...transactionPromises,
+                    removePromise
+                ]);
             })
             .then(() => resolve())
             .catch(error => reject(error));

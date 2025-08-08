@@ -19,7 +19,6 @@
             <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
             <button class="tab-btn" data-tab="issue">Issue Items</button>
             <button class="tab-btn" data-tab="return">Return Items</button>
-            <button class="tab-btn" data-tab="inventory">Inventory</button>
             <button class="tab-btn" data-tab="reports">Reports</button>
         </nav>
 
@@ -29,16 +28,16 @@
                 <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
                 <div class="stats-container">
                     <div class="stat-card">
-                        <h3>Total Items</h3>
-                        <p id="total-items">0</p>
+                        <h3>Active Jobs</h3>
+                        <p id="active-jobs">0</p>
                     </div>
                     <div class="stat-card">
                         <h3>Items Checked Out</h3>
                         <p id="checked-out">0</p>
                     </div>
                     <div class="stat-card">
-                        <h3>Active Jobs</h3>
-                        <p id="active-jobs">0</p>
+                        <h3>Recent Activities</h3>
+                        <p id="recent-activities">0</p>
                     </div>
                 </div>
                 <div class="recent-activity">
@@ -80,10 +79,9 @@
                     
                     <div class="items-container">
                         <div class="item-row">
-                            <select class="item-select" required>
-                                <option value="">Select Item</option>
-                            </select>
+                            <input type="text" class="item-name" placeholder="Item Name" required>
                             <input type="number" class="item-quantity" min="1" placeholder="Qty" required>
+                            <input type="text" class="item-unit" placeholder="Unit (kg, liters, etc.)" required>
                             <button type="button" class="remove-item-btn"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
@@ -115,27 +113,6 @@
                         <tbody></tbody>
                     </table>
                 </div>
-            </div>
-
-            <!-- Inventory Tab -->
-            <div id="inventory" class="tab-content">
-                <h2><i class="fas fa-boxes"></i> Inventory</h2>
-                <div class="inventory-actions">
-                    <button id="refresh-inventory" class="btn-secondary"><i class="fas fa-sync-alt"></i> Refresh</button>
-                    <button id="add-new-item" class="btn-primary"><i class="fas fa-plus"></i> Add New Item</button>
-                </div>
-                <table id="inventory-table">
-                    <thead>
-                        <tr>
-                            <th>Item ID</th>
-                            <th>Item Name</th>
-                            <th>Current Stock</th>
-                            <th>Unit</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
             </div>
 
             <!-- Reports Tab -->
@@ -181,29 +158,6 @@
                 <form id="return-form">
                     <div id="return-items-list"></div>
                     <button type="submit" class="btn-primary"><i class="fas fa-check"></i> Confirm Return</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Modal for New Item -->
-        <div id="new-item-modal" class="modal">
-            <div class="modal-content">
-                <span class="close-modal">&times;</span>
-                <h2>Add New Inventory Item</h2>
-                <form id="new-item-form">
-                    <div class="form-group">
-                        <label for="new-item-name">Item Name:</label>
-                        <input type="text" id="new-item-name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="new-item-stock">Initial Stock:</label>
-                        <input type="number" id="new-item-stock" min="0" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="new-item-unit">Unit:</label>
-                        <input type="text" id="new-item-unit" placeholder="e.g., kg, liters, units" required>
-                    </div>
-                    <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Save Item</button>
                 </form>
             </div>
         </div>

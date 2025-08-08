@@ -5,9 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize database
     initDB().then(() => {
         loadDashboardData();
-        populateItemDropdowns();
         loadActiveJobs();
-        loadInventory();
     });
     
     // Tab functionality
@@ -29,9 +27,6 @@ document.addEventListener('DOMContentLoaded', function() {
             switch(tabId) {
                 case 'dashboard':
                     loadDashboardData();
-                    break;
-                case 'inventory':
-                    loadInventory();
                     break;
                 case 'return':
                     loadActiveJobs();
@@ -61,15 +56,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const items = [];
         
         itemRows.forEach(row => {
-            const itemSelect = row.querySelector('.item-select');
+            const itemName = row.querySelector('.item-name').value;
             const quantityInput = row.querySelector('.item-quantity');
+            const unitInput = row.querySelector('.item-unit');
             
-            items.push({
-                itemId: itemSelect.value,
-                itemName: itemSelect.options[itemSelect.selectedIndex].text,
-                quantity: parseInt(quantityInput.value)
-            });
+            if (itemName && quantityInput.value && unitInput.value) {
+                items.push({
+                    itemName: itemName,
+                    quantity: parseInt(quantityInput.value),
+                    unit: unitInput.value
+                });
+            }
         });
+        
+        if (items.length === 0) {
+            alert('Please add at least one item');
+            return;
+        }
         
         // Issue items
         issueItems(jobId, personName, items, task, date)
@@ -84,7 +87,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update dashboard
                 loadDashboardData();
                 loadActiveJobs();
-                loadInventory();
             })
             .catch(error => {
                 console.error('Error issuing items:', error);
@@ -128,14 +130,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const returnItems = [];
         
         document.querySelectorAll('#return-items-list .return-item').forEach(item => {
-            const itemId = item.getAttribute('data-item-id');
             const returnedQty = parseInt(item.querySelector('.returned-qty').value);
             const originalQty = parseInt(item.querySelector('.original-qty').textContent);
             
             returnItems.push({
-                itemId: itemId,
+                itemName: item.querySelector('.item-name').textContent,
                 returnedQty: returnedQty,
-                originalQty: originalQty
+                originalQty: originalQty,
+                unit: item.querySelector('.item-unit').textContent
             });
         });
         
@@ -145,41 +147,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 closeAllModals();
                 loadDashboardData();
                 loadActiveJobs();
-                loadInventory();
             })
             .catch(error => {
                 console.error('Error returning items:', error);
                 alert('Error returning items: ' + error.message);
-            });
-    });
-    
-    // Inventory refresh
-    document.getElementById('refresh-inventory').addEventListener('click', loadInventory);
-    
-    // Add new item modal
-    document.getElementById('add-new-item').addEventListener('click', function() {
-        document.getElementById('new-item-modal').style.display = 'block';
-    });
-    
-    // New item form submission
-    document.getElementById('new-item-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const itemName = document.getElementById('new-item-name').value;
-        const initialStock = parseInt(document.getElementById('new-item-stock').value);
-        const unit = document.getElementById('new-item-unit').value;
-        
-        addNewInventoryItem(itemName, initialStock, unit)
-            .then(() => {
-                alert('New item added successfully!');
-                document.getElementById('new-item-form').reset();
-                document.getElementById('new-item-modal').style.display = 'none';
-                loadInventory();
-                populateItemDropdowns();
-            })
-            .catch(error => {
-                console.error('Error adding new item:', error);
-                alert('Error adding new item: ' + error.message);
             });
     });
     
@@ -195,24 +166,11 @@ function createItemRow() {
     const row = document.createElement('div');
     row.className = 'item-row';
     
-    const select = document.createElement('select');
-    select.className = 'item-select';
-    select.required = true;
-    
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Select Item';
-    select.appendChild(defaultOption);
-    
-    // Populate with items from database
-    getAllInventoryItems().then(items => {
-        items.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item.id;
-            option.textContent = `${item.name} (${item.currentStock} ${item.unit} available)`;
-            select.appendChild(option);
-        });
-    });
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'item-name';
+    nameInput.placeholder = 'Item Name';
+    nameInput.required = true;
     
     const quantityInput = document.createElement('input');
     quantityInput.type = 'number';
@@ -220,6 +178,12 @@ function createItemRow() {
     quantityInput.min = '1';
     quantityInput.placeholder = 'Qty';
     quantityInput.required = true;
+    
+    const unitInput = document.createElement('input');
+    unitInput.type = 'text';
+    unitInput.className = 'item-unit';
+    unitInput.placeholder = 'Unit (kg, liters, etc.)';
+    unitInput.required = true;
     
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -229,46 +193,25 @@ function createItemRow() {
         row.remove();
     });
     
-    row.appendChild(select);
+    row.appendChild(nameInput);
     row.appendChild(quantityInput);
+    row.appendChild(unitInput);
     row.appendChild(removeBtn);
     
     return row;
 }
 
-// Populate item dropdowns
-function populateItemDropdowns() {
-    const dropdowns = document.querySelectorAll('.item-select');
-    
-    getAllInventoryItems().then(items => {
-        dropdowns.forEach(dropdown => {
-            // Clear existing options except the first one
-            while (dropdown.options.length > 1) {
-                dropdown.remove(1);
-            }
-            
-            // Add new options
-            items.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = `${item.name} (${item.currentStock} ${item.unit} available)`;
-                dropdown.appendChild(option);
-            });
-        });
-    });
-}
-
 // Load dashboard data
 function loadDashboardData() {
     Promise.all([
-        getTotalInventoryItems(),
-        getTotalCheckedOutItems(),
         getActiveJobsCount(),
+        getTotalCheckedOutItems(),
+        getRecentActivityCount(),
         getRecentActivity()
-    ]).then(([totalItems, checkedOut, activeJobs, activity]) => {
-        document.getElementById('total-items').textContent = totalItems;
-        document.getElementById('checked-out').textContent = checkedOut;
+    ]).then(([activeJobs, checkedOut, recentActivities, activity]) => {
         document.getElementById('active-jobs').textContent = activeJobs;
+        document.getElementById('checked-out').textContent = checkedOut;
+        document.getElementById('recent-activities').textContent = recentActivities;
         
         const activityTable = document.querySelector('#activity-table tbody');
         activityTable.innerHTML = '';
@@ -369,11 +312,16 @@ function openReturnModal(jobId) {
         job.items.forEach(item => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'return-item';
-            itemDiv.setAttribute('data-item-id', item.id);
             
             const itemName = document.createElement('h4');
-            itemName.textContent = `${item.name} (${item.unit})`;
+            itemName.className = 'item-name';
+            itemName.textContent = item.name;
             itemDiv.appendChild(itemName);
+            
+            const unitInfo = document.createElement('p');
+            unitInfo.className = 'item-unit';
+            unitInfo.textContent = `Unit: ${item.unit}`;
+            itemDiv.appendChild(unitInfo);
             
             const originalQtyLabel = document.createElement('p');
             originalQtyLabel.textContent = `Originally issued: `;
@@ -415,40 +363,6 @@ function closeAllModals() {
     });
 }
 
-// Load inventory
-function loadInventory() {
-    getAllInventoryItems().then(items => {
-        const tableBody = document.querySelector('#inventory-table tbody');
-        tableBody.innerHTML = '';
-        
-        items.forEach(item => {
-            const row = document.createElement('tr');
-            
-            const idCell = document.createElement('td');
-            idCell.textContent = item.id;
-            row.appendChild(idCell);
-            
-            const nameCell = document.createElement('td');
-            nameCell.textContent = item.name;
-            row.appendChild(nameCell);
-            
-            const stockCell = document.createElement('td');
-            stockCell.textContent = item.currentStock;
-            row.appendChild(stockCell);
-            
-            const unitCell = document.createElement('td');
-            unitCell.textContent = item.unit;
-            row.appendChild(unitCell);
-            
-            const actionsCell = document.createElement('td');
-            // Add action buttons if needed
-            row.appendChild(actionsCell);
-            
-            tableBody.appendChild(row);
-        });
-    });
-}
-
 // Generate monthly report
 function generateMonthlyReport(month) {
     getMonthlyReport(month).then(report => {
@@ -468,7 +382,7 @@ function generateMonthlyReport(month) {
         summaryDiv.appendChild(returnedStat);
         
         const netStat = document.createElement('p');
-        netStat.innerHTML = `<strong>Net Change:</strong> ${report.summary.netChange}`;
+        netStat.innerHTML = `<strong>Net Change:</strong> ${report.summary.netChange > 0 ? '+' : ''}${report.summary.netChange}`;
         summaryDiv.appendChild(netStat);
         
         summaryStats.appendChild(summaryDiv);

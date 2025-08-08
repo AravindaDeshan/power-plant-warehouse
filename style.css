@@ -208,12 +208,32 @@ body {
     align-items: center;
 }
 
-.item-row select {
-    flex: 3;
+.item-row input[type="text"],
+.item-row input[type="number"] {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border 0.3s ease;
 }
 
-.item-row input {
+.item-row input[type="text"]:focus,
+.item-row input[type="number"]:focus {
+    border-color: var(--secondary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.item-name {
+    flex: 2;
+}
+
+.item-quantity {
     flex: 1;
+}
+
+.item-unit {
+    flex: 1.5;
 }
 
 .remove-item-btn {
@@ -348,13 +368,6 @@ tr:hover {
     font-size: 1rem;
 }
 
-/* Inventory Actions */
-.inventory-actions {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-}
-
 /* Report Controls */
 .report-controls {
     display: flex;
@@ -447,7 +460,6 @@ footer {
         flex-direction: column;
     }
     
-    .item-row select,
     .item-row input {
         width: 100%;
     }
@@ -456,4 +468,12 @@ footer {
         width: 95%;
         margin: 20% auto;
     }
+}
+
+.text-success {
+    color: var(--success-color);
+}
+
+.text-info {
+    color: var(--info-color);
 }
